@@ -1,0 +1,11 @@
+# Excluding environment files
+autocomplete_env
+
+# Excluding enviroment variables
+.env
+
+# Exluding cache files
+__pycache__
+
+# Excluding data
+data
