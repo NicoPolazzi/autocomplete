@@ -1,6 +1,7 @@
 import re
 
 from logger import get_logger
+from dataset import create_dataloader
 
 logger = get_logger(__name__)
 
@@ -44,6 +45,23 @@ def _tokenize_code(code: str) -> list[str]:
     return tokens
 
 
+def create_vocabulary(tokens: list[str]) -> dict:
+    vocab = {token: idx for idx, token in enumerate(set(tokens))}
+    return vocab
+
+
 if __name__ == "__main__":
     tokens = preprocess_data()
-    logger.info(f"Tokens: {tokens}")
+    vocab = create_vocabulary(tokens)
+    dataloader = create_dataloader(tokens, vocab, batch_size=32)
+
+    print(f"First few tokens: {tokens[:10]}")
+
+    # Print the vocabulary
+    print(f"Vocabulary: {vocab.keys()}")
+
+    for i, batch in enumerate(dataloader):
+        print(f"Batch {i+1} size: {batch.size()}")
+        print(f"Batch {i+1} content: {batch}")
+        if i >= 2:  # Print only the first 3 batches for demonstration
+            break
