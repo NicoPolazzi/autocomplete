@@ -25,7 +25,7 @@ def main():
 
     logger.info(f"Starting {args.command} procedure...")
     if args.command == "train":
-        model = CodeAutocompleteModel()
+        model = CodeAutocompleteModel(vocab_size=len(dataset.vocab))
         logger.info("Model created successfully!")
         train_and_evaluate(model, dataloader, epochs=10, lr=1e-3)
 
