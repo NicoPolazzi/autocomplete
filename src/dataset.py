@@ -19,9 +19,9 @@ class CodeSnippetIterableDataset(IterableDataset):
         self.max_samples = max_samples
         self.context_length = context_length
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModel.from_pretrained(self.model_name).to(device).eval()
+        self.model = AutoModel.from_pretrained(self.model_name).to(self.device).eval()
         self.vocab_size = len(self.tokenizer)
 
         self.raw_dataset = load_dataset("flytech/python-codes-25k", split=f"train[:{self.max_samples}]")
@@ -51,9 +51,9 @@ class CodeSnippetIterableDataset(IterableDataset):
                 token_ids = self.tokenizer.encode(code, add_special_tokens=False)
 
                 for context_ids, label_id in self._create_pairs(token_ids):
-                    inputs = torch.tensor(context_ids)[None, :]
+                    inputs = torch.tensor(context_ids)[None, :].to(self.device)
                     outputs = self.model(inputs).last_hidden_state.squeeze(0)
-                    yield outputs, torch.tensor(label_id)
+                    yield outputs, torch.tensor(label_id).to(self.device)
 
 
 def new_data_loader(dataset: Dataset, batch_size: int = 32) -> DataLoader:
