@@ -4,7 +4,7 @@ from typing import Sequence
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset, Subset, random_split, DataLoader, IterableDataset
-from transformers import RobertaTokenizer, RobertaModel
+from transformers import AutoTokenizer, AutoModel
 from datasets import load_dataset
 from src.preprocess import get_embeddings_and_next_token_pairs
 from src.logger import get_logger
@@ -19,8 +19,9 @@ class CodeSnippetIterableDataset(IterableDataset):
         self.max_samples = max_samples
         self.context_length = context_length
 
-        self.tokenizer = RobertaTokenizer.from_pretrained(self.model_name)
-        self.model = RobertaModel.from_pretrained(self.model_name).eval()
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.model = AutoModel.from_pretrained(self.model_name).eval()
+        self.vocab_size = len(self.tokenizer)
 
         self.raw_dataset = load_dataset("flytech/python-codes-25k", split=f"train[:{self.max_samples}]")
 

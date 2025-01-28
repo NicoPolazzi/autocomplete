@@ -5,8 +5,14 @@ import torch
 
 
 class AutocompleteModel(nn.Module):
+    # 768 is the size of the BERT embeddings, and 30522 is the number of tokens in the vocabulary
     def __init__(
-        self, input_size: int, hidden_size: int, output_size: int, num_layers: int = 2, dropout: float = 0.2
+        self,
+        input_size: int = 768,
+        hidden_size: int = 256,
+        output_size: int = 30522,
+        num_layers: int = 2,
+        dropout: float = 0.2,
     ) -> None:
         super(AutocompleteModel, self).__init__()
         self.hidden_size = hidden_size
@@ -38,8 +44,8 @@ class AutocompleteModel(nn.Module):
 
 class _AttentionLayer(nn.Module):
     def __init__(self, hidden_size: int) -> None:
-        super().__init__()
-        self.attention = nn.Linear(hidden_size, 1)
+        super(_AttentionLayer, self).__init__()
+        self.attention = nn.Linear(hidden_size, 1, bias=False)
 
     def forward(self, x: Tensor) -> Tensor:
         attention_weights = F.softmax(self.attention(x), dim=1)
