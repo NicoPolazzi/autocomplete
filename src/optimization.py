@@ -29,6 +29,7 @@ def train_and_evaluate(model, dataloader, epochs=2, lr=1e-3, device="cuda" if to
             total_loss += loss.item()
 
         logger.info(f"Epoch {epoch+1}, Train Loss: {total_loss:.4f}")
+        print(f"Epoch {epoch+1}, Train Loss: {total_loss:.4f}")
 
         model.eval()
         with torch.no_grad():
@@ -39,6 +40,8 @@ def train_and_evaluate(model, dataloader, epochs=2, lr=1e-3, device="cuda" if to
                 eval_loss += loss.item()
 
         logger.info(f"Epoch {epoch+1}, Eval Loss: {eval_loss:.4f}")
+        print(f"Epoch {epoch+1}, Eval Loss: {eval_loss:.4f}")
 
     total_time = time.time() - total_start
     logger.info(f"Total training time: {total_time:.2f} seconds")
+    print(f"Total training time: {total_time:.2f} seconds")
