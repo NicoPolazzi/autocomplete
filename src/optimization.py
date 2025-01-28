@@ -8,7 +8,7 @@ from src.logger import get_logger
 logger = get_logger(__name__)
 
 
-def train_and_evaluate(loader, model, epochs=2, lr=1e-3, device="cuda" if torch.cuda.is_available() else "cpu"):
+def train_and_evaluate(model, dataloader, epochs=2, lr=1e-3, device="cuda" if torch.cuda.is_available() else "cpu"):
     optimizer = Adam(model.parameters(), lr=lr, weight_decay=1e-5)
     criterion = nn.CrossEntropyLoss()
     total_start = time.time()
@@ -18,11 +18,11 @@ def train_and_evaluate(loader, model, epochs=2, lr=1e-3, device="cuda" if torch.
         eval_loss = 0.0
 
         model.train()
-        for inputs, targets in loader:
-            inputs, targets = inputs.to(device), targets.to(device)
+        for input_ids, target_ids in dataloader:
+            inputs, targets = input_ids.to(device), target_ids.to(device)
             optimizer.zero_grad()
-            output = model(inputs)
-            loss = criterion(output, targets)
+            logits = model(inputs)
+            loss = criterion(logits.view(-1, logits.size(-1)), target_ids.view(-1))
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
@@ -31,10 +31,10 @@ def train_and_evaluate(loader, model, epochs=2, lr=1e-3, device="cuda" if torch.
 
         model.eval()
         with torch.no_grad():
-            for inputs, targets in loader:
+            for inputs, targets in dataloader:
                 inputs, targets = inputs.to(device), targets.to(device)
                 output = model(inputs)
-                loss = criterion(output, targets)
+                loss = criterion(output.view(-1, output.size(-1)), targets.view(-1))
                 eval_loss += loss.item()
 
         logger.info(f"Epoch {epoch+1}, Eval Loss: {eval_loss:.4f}")

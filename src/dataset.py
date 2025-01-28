@@ -12,19 +12,42 @@ from src.logger import get_logger
 logger = get_logger(__name__)
 
 
-class CodeSnippetIterableDataset(IterableDataset):
-    def __init__(self, model_name: str = "microsoft/codebert-base", max_samples: int = 10000, context_length: int = 50):
-        super().__init__()
-        self.model_name = model_name
+class CodeDataset(Dataset):
+    def __init__(self, max_length, max_samples: int = 10000):
+        self.tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
+        self.max_length = max_length
         self.max_samples = max_samples
-        self.context_length = context_length
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModel.from_pretrained(self.model_name).to(self.device).eval()
-        self.vocab_size = len(self.tokenizer)
+        self.input_sequences = []
+        self.target_sequences = []
+        self.raw_dataset = load_dataset("flytech/python-codes-25k", split=f"train[:{self.max_samples}]")["output"]
 
-        self.raw_dataset = load_dataset("flytech/python-codes-25k", split=f"train[:{self.max_samples}]")
+        for item in self.raw_dataset:
+            code = self._clean(item)
+            tokens = self.tokenizer.tokenize(code)
+            token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
+
+            for i in range(1, len(token_ids)):
+                input_seq = token_ids[:i]
+                target_seq = token_ids[i]
+
+                if len(input_seq) > self.max_length:
+                    input_seq = input_seq[-self.max_length :]
+
+                self.input_sequences.append(input_seq)
+                self.target_sequences.append(target_seq)
+
+    def __len__(self):
+        return len(self.input_sequences)
+
+    def __getitem__(self, idx):
+        input_seq = self.input_sequences[idx]
+        target_seq = self.target_sequences[idx]
+
+        if len(input_seq) < self.max_length:
+            input_seq = [self.tokenizer.pad_token_id] * (self.max_length - len(input_seq)) + input_seq
+
+        return torch.tensor(input_seq), torch.tensor(target_seq)
 
     def _clean(self, code: str) -> str:
         code = code.replace("```python\n", "")
@@ -33,35 +56,3 @@ class CodeSnippetIterableDataset(IterableDataset):
             for line in code.splitlines()
             if not line.strip().startswith("#") and not line.strip().startswith("```")
         )
-
-    def _create_pairs(self, tokens: list[int]) -> list[tuple[list[int], int]]:
-        pairs = []
-
-        for i in range(len(tokens) - self.context_length):
-            context = tokens[i : i + self.context_length]
-            next_token = tokens[i + self.context_length]
-            pairs.append((context, next_token))
-        return pairs
-
-    def __iter__(self):
-        with torch.no_grad():
-
-            for item in self.raw_dataset:
-                code = self._clean(item["output"])
-                token_ids = self.tokenizer.encode(code, add_special_tokens=False)
-
-                for context_ids, label_id in self._create_pairs(token_ids):
-                    inputs = torch.tensor(context_ids)[None, :].to(self.device)
-                    outputs = self.model(inputs).last_hidden_state.squeeze(0)
-                    yield outputs, torch.tensor(label_id).to(self.device)
-
-
-def new_data_loader(dataset: Dataset, batch_size: int = 32) -> DataLoader:
-    return DataLoader(dataset, batch_size=batch_size, collate_fn=_collate_fn, num_workers=0)
-
-
-def _collate_fn(batch: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
-    embeddings, labels = zip(*batch)
-    inputs = torch.stack(embeddings)
-    targets = torch.stack(labels)
-    return inputs, targets

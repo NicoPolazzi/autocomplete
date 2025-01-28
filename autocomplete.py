@@ -1,9 +1,11 @@
 import argparse
 
 from src.logger import get_logger
-from src.dataset import CodeSnippetIterableDataset, new_data_loader
-from src.model import AutocompleteModel
+from src.dataset import CodeDataset
+from src.model import CodeAutocompleteModel
 from src.optimization import train_and_evaluate
+
+from torch.utils.data import DataLoader
 
 
 logger = get_logger(__name__)
@@ -17,15 +19,15 @@ def main():
 
     logger.info("Welcome to the python autocomplete tool!")
 
-    dataset = CodeSnippetIterableDataset(model_name="microsoft/codebert-base", max_samples=2000, context_length=50)
-    data_loader = new_data_loader(dataset, batch_size=4)
+    dataset = CodeDataset(max_length=128, max_samples=1000)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=0)
     logger.info("Data loaded successfully!")
 
     logger.info(f"Starting {args.command} procedure...")
     if args.command == "train":
-        model = AutocompleteModel(output_size=dataset.vocab_size)
+        model = CodeAutocompleteModel()
         logger.info("Model created successfully!")
-        train_and_evaluate(data_loader, model)
+        train_and_evaluate(model, dataloader, epochs=10, lr=1e-3)
 
     logger.info("End of the python autocomplete tool!")
 
