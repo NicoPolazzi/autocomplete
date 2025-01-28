@@ -11,6 +11,7 @@ logger = get_logger(__name__)
 def train_and_evaluate(model, dataloader, epochs=2, lr=1e-3, device="cuda" if torch.cuda.is_available() else "cpu"):
     optimizer = Adam(model.parameters(), lr=lr, weight_decay=1e-5)
     criterion = nn.CrossEntropyLoss()
+    model.to(device)
     total_start = time.time()
 
     for epoch in range(epochs):
