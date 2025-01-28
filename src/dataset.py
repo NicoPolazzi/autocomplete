@@ -19,8 +19,9 @@ class CodeSnippetIterableDataset(IterableDataset):
         self.max_samples = max_samples
         self.context_length = context_length
 
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModel.from_pretrained(self.model_name).eval()
+        self.model = AutoModel.from_pretrained(self.model_name).to(device).eval()
         self.vocab_size = len(self.tokenizer)
 
         self.raw_dataset = load_dataset("flytech/python-codes-25k", split=f"train[:{self.max_samples}]")
@@ -55,7 +56,7 @@ class CodeSnippetIterableDataset(IterableDataset):
                     yield outputs, torch.tensor(label_id)
 
 
-def new_data_loader(dataset: Dataset, batch_size: int = 4) -> DataLoader:
+def new_data_loader(dataset: Dataset, batch_size: int = 32) -> DataLoader:
     return DataLoader(dataset, batch_size=batch_size, collate_fn=_collate_fn, num_workers=4)
 
 
