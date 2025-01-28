@@ -1,45 +1,30 @@
 from logging import getLogger
 import time
-import torch.nn as nn
-import torch.optim as optim
+import torch
 
 logger = getLogger(__name__)
 
 
-def train_model(model, dataloader, criterion, optimizer, num_epochs=10, report_every=5):
-    all_losses = []
+def train_model(model, train_loader, criterion, optimizer, num_epochs=10, clip_grad_norm=1.0):
+    device = torch.get_default_device()
+    model.to(device)
+
     model.train()
 
-    start_time = time.time()
-    logger.info(f"training on dataset with n = {len(dataloader.dataset)}")
+    for epoch in range(num_epochs):
+        total_loss = 0
 
-    for epoch in range(1, num_epochs + 1):
-        current_loss = 0
+        for inputs, targets in train_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
 
-        for input_sequence, label in dataloader:
             optimizer.zero_grad()
-            output = model(input_sequence)
-            loss = criterion(output, label)
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), clip_grad_norm)
             optimizer.step()
+            total_loss += loss.item()
 
-            current_loss += loss.item()
-
-        average_loss = current_loss / len(dataloader)
-        all_losses.append(average_loss)
-
-        if epoch % report_every == 0:
-            logger.info(
-                f"{epoch} ({epoch/num_epochs:.0%}): average batch loss = {average_loss}"
-            )
-
-    logger.info(f"training completed in {time.time() - start_time:.2f} seconds")
-    return all_losses
-
-
-def get_optimizer(model, learning_rate=0.001):
-    return optim.Adam(model.parameters(), lr=learning_rate)
-
-
-def get_criterion():
-    return nn.CrossEntropyLoss()
+        avg_loss = total_loss / len(train_loader)
+        logger.info(f"Epoch [{epoch+1}/{num_epochs}], Avg_loss: {avg_loss:.4f}")

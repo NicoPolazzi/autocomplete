@@ -1,36 +1,46 @@
 import torch.nn as nn
+import torch.nn.functional as F
+from torch import Tensor
 import torch
 
 
-class CodeRNN(nn.Module):
+class AutocompleteModel(nn.Module):
     def __init__(
-        self,
-        input_size: int,
-        hidden_size: int,
-        output_size: int,
-        model_type: str = "LSTM",
+        self, input_size: int, hidden_size: int, output_size: int, num_layers: int = 2, dropout: float = 0.2
     ) -> None:
-        super(CodeRNN, self).__init__()
+        super(AutocompleteModel, self).__init__()
         self.hidden_size = hidden_size
-        self.model_type = model_type
-        self.rnn: nn.Module
+        self.num_layers = num_layers
 
-        if model_type == "LSTM":
-            self.rnn = nn.LSTM(input_size, hidden_size, batch_first=True)
-        elif model_type == "GRU":
-            self.rnn = nn.GRU(input_size, hidden_size, batch_first=True)
-        else:
-            raise ValueError("model_type should be either 'LSTM' or 'GRU'")
-
+        self.lstm = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers,
+            batch_first=True,
+            dropout=dropout if num_layers > 1 else 0,
+        )
+        self.layer_norm = nn.LayerNorm(hidden_size)
+        self.attention = _AttentionLayer(hidden_size)
         self.fc = nn.Linear(hidden_size, output_size)
-        self.softmax = nn.LogSoftmax(dim=1)
 
-    def forward(self, x):
-        if self.model_type == "LSTM":
-            output, (hidden, _) = self.rnn(x)
-        elif self.model_type == "GRU":
-            output, hidden = self.rnn(x)
+    def forward(self, x: Tensor) -> Tensor:
+        batch_size = x.size(0)
+        h0 = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(x.device)
+        c0 = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(x.device)
 
-        output = self.fc(output[:, -1, :])
-        output = self.softmax(output)
-        return output
+        lstm_out, _ = self.lstm(x, (h0, c0))
+        normalized = self.layer_norm(lstm_out)
+        attended = self.attention(normalized)
+        out = self.fc(attended)
+
+        return out
+
+
+class _AttentionLayer(nn.Module):
+    def __init__(self, hidden_size: int) -> None:
+        super().__init__()
+        self.attention = nn.Linear(hidden_size, 1)
+
+    def forward(self, x: Tensor) -> Tensor:
+        attention_weights = F.softmax(self.attention(x), dim=1)
+        return torch.sum(attention_weights * x, dim=1)
