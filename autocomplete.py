@@ -1,37 +1,25 @@
 import argparse
 
-from torch import nn
-import torch
-
 from src.logger import get_logger
-from src.dataset import CodeDataset
-from src.train import train_model
-from src.utils import load_processed_dataset
+from src.dataset import CodeSnippetIterableDataset, new_data_loader
 
 logger = get_logger(__name__)
 
 
 def main():
+    # TODO: implement all command line choices
     parser = argparse.ArgumentParser(description="Python autocompletion")
-    parser.add_argument("command", choices=["preprocess", "train"])
+    parser.add_argument("command", choices=["train", "evaluate", "inference"])
     args = parser.parse_args()
 
-    logger.info("Start of the ML pipeline")
+    logger.info("Welcome to the python autocomplete tool!")
+    dataset = CodeSnippetIterableDataset(model_name="microsoft/codebert-base", max_samples=2000, context_length=50)
+    data_loader = new_data_loader(dataset, batch_size=4)
+    logger.info("Data loaded successfully!")
 
-    if args.command == "preprocess":
-        alldata = CodeDataset()
-        alldata.write_to_file("data/dataset.pkl")
+    logger.info(f"Starting {args.command} procedure...")
 
-    elif args.command == "train":
-        dataset = load_processed_dataset("data/dataset.pkl")
-        train_dataset, test_dataset = dataset.create_train_evaluation_split()
-
-        input_size = 768
-        hidden_size = 256
-        output_size = len(set(dataset.next_tokens_ids))
-        num_layer = 2
-
-    logger.info("End of the ML pipeline")
+    logger.info("End of the python autocomplete tool!")
 
 
 if __name__ == "__main__":

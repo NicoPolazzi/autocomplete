@@ -9,6 +9,3 @@ data
 
 # Excluding config files
 mypy.ini
-
-# Exluding ide files
-.vscode
