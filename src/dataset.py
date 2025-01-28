@@ -57,7 +57,7 @@ class CodeSnippetIterableDataset(IterableDataset):
 
 
 def new_data_loader(dataset: Dataset, batch_size: int = 32) -> DataLoader:
-    return DataLoader(dataset, batch_size=batch_size, collate_fn=_collate_fn, num_workers=4)
+    return DataLoader(dataset, batch_size=batch_size, collate_fn=_collate_fn, num_workers=0)
 
 
 def _collate_fn(batch: list[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
