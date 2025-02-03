@@ -19,7 +19,7 @@ class CodeAutocompleteModel(nn.Module):
         super(CodeAutocompleteModel, self).__init__()
         self.embedding = AutoModel.from_pretrained(MODEL_NAME)
         self.lstm = nn.LSTM(
-            input_size=self.codebert.config.hidden_size,
+            input_size=self.embedding.config.hidden_size,
             hidden_size=hidden_dim,
             num_layers=num_layers,
             batch_first=True,
