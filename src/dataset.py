@@ -67,7 +67,7 @@ class CodeDataset(Dataset):
         return {
             "input_ids": torch.tensor(input_seq),
             "attention_mask": torch.tensor(attention_mask),
-            "target": torch.tensor(target_seq),
+            "target_ids": torch.tensor(target_seq),
         }
 
     def _clean(self, code: str) -> str:
