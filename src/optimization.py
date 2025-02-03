@@ -16,7 +16,7 @@ def train_and_evaluate(
     lr=1e-3,
     device="cuda" if torch.cuda.is_available() else "cpu",
 ):
-    optimizer = Adam(model.parameters(), lr=lr, weight_decay=1e-5)
+    optimizer = Adam(model.parameters(), lr=lr, weight_decay=0.01)
     criterion = nn.CrossEntropyLoss()
     model.to(device)
     total_start = time.time()
