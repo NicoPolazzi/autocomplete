@@ -1,13 +1,8 @@
-import pickle
-from typing import Sequence
-
 import torch
-from torch import Tensor
-from torch.utils.data import Dataset, Subset, random_split, DataLoader, IterableDataset
-from transformers import AutoTokenizer, AutoModel
+from torch.utils.data import Dataset
+from transformers import AutoTokenizer
 from datasets import load_dataset
 from collections import Counter
-from src.preprocess import get_embeddings_and_next_token_pairs
 from src.logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,22 +16,21 @@ class CodeDataset(Dataset):
 
         self.input_sequences = []
         self.target_sequences = []
-        self.raw_dataset = load_dataset("flytech/python-codes-25k", split=f"train[:{self.max_samples}]")["output"]
+        self.raw_dataset = load_dataset(
+            "flytech/python-codes-25k", split=f"train[:{self.max_samples}]"
+        )
 
-        # Step 1: Collect all unique tokens
         all_tokens = []
-        for item in self.raw_dataset:
+        for item in self.raw_dataset["output"]:
             code = self._clean(item)
             tokens = self.tokenizer.tokenize(code)
             all_tokens.extend(tokens)
 
-        # Step 2: Create a custom vocabulary
         token_counter = Counter(all_tokens)
         self.vocab = {token: idx for idx, (token, _) in enumerate(token_counter.items(), start=1)}
-        self.vocab["<PAD>"] = 0  # Add padding token
+        self.vocab["<PAD>"] = 0
         self.inv_vocab = {idx: token for token, idx in self.vocab.items()}
 
-        # Step 3: Tokenize code snippets using the custom vocabulary
         for item in self.raw_dataset:
             code = self._clean(item)
             tokens = self.tokenizer.tokenize(code)
@@ -58,11 +52,23 @@ class CodeDataset(Dataset):
     def __getitem__(self, idx):
         input_seq = self.input_sequences[idx]
         target_seq = self.target_sequences[idx]
+        # Attention mask is used for improving model perfomance
+        attention_mask = [0] * self.max_length
 
         if len(input_seq) < self.max_length:
+            attention_mask[self.max_length - len(input_seq) :] = [1] * len(input_seq)
             input_seq = [self.vocab["<PAD>"]] * (self.max_length - len(input_seq)) + input_seq
+        else:
+            attention_mask = [1] * self.max_length
+            # I get the last tokens in the sequence, because I think that they should be more relevant
+            # So I pad from the left, because last tokens are more important
+            input_seq = input_seq[-self.max_length :]
 
-        return torch.tensor(input_seq), torch.tensor(target_seq)
+        return {
+            "input_ids": torch.tensor(input_seq),
+            "attention_mask": torch.tensor(attention_mask),
+            "target": torch.tensor(target_seq),
+        }
 
     def _clean(self, code: str) -> str:
         code = code.replace("```python\n", "")

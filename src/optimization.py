@@ -19,10 +19,13 @@ def train_and_evaluate(model, dataloader, epochs=2, lr=1e-3, device="cuda" if to
         eval_loss = 0.0
 
         model.train()
-        for input_ids, target_ids in dataloader:
-            inputs, targets = input_ids.to(device), target_ids.to(device)
+        for batch in dataloader:
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            target_ids = batch["target_ids"].to(device)
+
             optimizer.zero_grad()
-            logits = model(inputs)
+            logits = model(input_ids, attention_mask)
             loss = criterion(logits.view(-1, logits.size(-1)), target_ids.view(-1))
             loss.backward()
             optimizer.step()

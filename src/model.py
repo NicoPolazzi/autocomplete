@@ -1,25 +1,36 @@
 import torch.nn as nn
-import torch.nn.functional as F
-from torch import Tensor
 import torch
-from src.logger import get_logger
 from transformers import AutoModel
+
+from src.logger import get_logger
 
 logger = get_logger(__name__)
 
+MODEL_NAME = "microsoft/codebert-base"
+
 
 class CodeAutocompleteModel(nn.Module):
-    def __init__(self, codebert_model_name="microsoft/codebert-base", hidden_dim=256, num_layers=2, vocab_size=None):
+    def __init__(
+        self,
+        vocab_size: int,
+        hidden_dim: int = 256,
+        num_layers: int = 2,
+    ):
         super(CodeAutocompleteModel, self).__init__()
-        self.codebert = AutoModel.from_pretrained(codebert_model_name)
+        self.embedding = AutoModel.from_pretrained(MODEL_NAME)
         self.lstm = nn.LSTM(
-            input_size=self.codebert.config.hidden_size, hidden_size=hidden_dim, num_layers=num_layers, batch_first=True
+            input_size=self.codebert.config.hidden_size,
+            hidden_size=hidden_dim,
+            num_layers=num_layers,
+            batch_first=True,
         )
         self.fc = nn.Linear(hidden_dim, vocab_size)
 
-    def forward(self, input_ids, attention_mask=None):
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
         with torch.no_grad():
-            embeddings = self.codebert(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+            embeddings = self.embedding(
+                input_ids=input_ids, attention_mask=attention_mask
+            ).last_hidden_state
         lstm_out, _ = self.lstm(embeddings)
         logits = self.fc(lstm_out[:, -1, :])
         return logits
