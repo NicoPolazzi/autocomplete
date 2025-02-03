@@ -8,7 +8,14 @@ from src.logger import get_logger
 logger = get_logger(__name__)
 
 
-def train_and_evaluate(model, dataloader, epochs=2, lr=1e-3, device="cuda" if torch.cuda.is_available() else "cpu"):
+def train_and_evaluate(
+    model,
+    train_set,
+    validation_set,
+    epochs=2,
+    lr=1e-3,
+    device="cuda" if torch.cuda.is_available() else "cpu",
+):
     optimizer = Adam(model.parameters(), lr=lr, weight_decay=1e-5)
     criterion = nn.CrossEntropyLoss()
     model.to(device)
@@ -19,7 +26,7 @@ def train_and_evaluate(model, dataloader, epochs=2, lr=1e-3, device="cuda" if to
         eval_loss = 0.0
 
         model.train()
-        for batch in dataloader:
+        for batch in train_set:
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
             target_ids = batch["target_ids"].to(device)
@@ -36,10 +43,13 @@ def train_and_evaluate(model, dataloader, epochs=2, lr=1e-3, device="cuda" if to
 
         model.eval()
         with torch.no_grad():
-            for inputs, targets in dataloader:
-                inputs, targets = inputs.to(device), targets.to(device)
-                output = model(inputs)
-                loss = criterion(output.view(-1, output.size(-1)), targets.view(-1))
+            for batch in validation_set:
+                input_ids = batch["input_ids"].to(device)
+                attention_mask = batch["attention_mask"].to(device)
+                target_ids = batch["target_ids"].to(device)
+
+                logits = model(input_ids, attention_mask)
+                loss = criterion(logits.view(-1, logits.size(-1)), target_ids.view(-1))
                 eval_loss += loss.item()
 
         logger.info(f"Epoch {epoch+1}, Eval Loss: {eval_loss:.4f}")

@@ -1,3 +1,5 @@
+""" Probably remove this module in the final version of the program"""
+
 import re
 
 import torch
@@ -27,7 +29,9 @@ def get_embeddings_and_next_token_pairs() -> tuple[list[torch.Tensor], list[int]
         batch = dataset[i : i + batch_size]
 
         # Process batch
-        code_snippets = [_remove_triple_backticks_and_comments(snippet) for snippet in batch["output"]]
+        code_snippets = [
+            _remove_triple_backticks_and_comments(snippet) for snippet in batch["output"]
+        ]
         tokenized_snippets = _tokenize_code_snippets(code_snippets, tokenizer)
 
         # Generate pairs and embeddings for batch
@@ -65,11 +69,15 @@ def _remove_triple_backticks_and_comments(code: str) -> str:
     return "\n".join(lines)
 
 
-def _tokenize_code_snippets(code_snippets: list[str], tokenizer: RobertaTokenizer) -> list[list[int]]:
+def _tokenize_code_snippets(
+    code_snippets: list[str], tokenizer: RobertaTokenizer
+) -> list[list[int]]:
     return [tokenizer.encode(snippet, add_special_tokens=False) for snippet in code_snippets]
 
 
-def _create_input_output_pairs(tokenized_snippet: list[int], context_length: int = 50) -> list[tuple[list[int], int]]:
+def _create_input_output_pairs(
+    tokenized_snippet: list[int], context_length: int = 50
+) -> list[tuple[list[int], int]]:
     pairs = []
 
     for i in range(len(tokenized_snippet) - context_length):
