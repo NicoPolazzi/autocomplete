@@ -19,10 +19,12 @@ class CodeAutocompleteModel(nn.Module):
     ):
         super(CodeAutocompleteModel, self).__init__()
         self.embedding = AutoModel.from_pretrained(MODEL_NAME)
-        self.batch_norm = nn.BatchNorm1d(self.embedding.config.hidden_size)
+        # This step is used to reduce the model size
+        self.projection = nn.Linear(self.embedding.config.hidden_size, hidden_dim)
+        self.layer_norm = nn.LayerNorm(hidden_dim)
         self.dropout = nn.Dropout(dropout_rate)
         self.lstm = nn.LSTM(
-            input_size=self.embedding.config.hidden_size,
+            input_size=hidden_dim,
             hidden_size=hidden_dim,
             num_layers=num_layers,
             batch_first=True,
@@ -35,8 +37,10 @@ class CodeAutocompleteModel(nn.Module):
         with torch.no_grad():
             embeddings = self.embedding(input_ids, attention_mask).last_hidden_state
 
-        embeddings = self.batch_norm(embeddings.transpose(1, 2)).transpose(1, 2)
+        embeddings = self.projection(embeddings)
+        embeddings = self.layer_norm(embeddings)
         embeddings = self.dropout(embeddings)
+
         lstm_out, _ = self.lstm(embeddings)
         lstm_out = self.dropout(lstm_out[:, -1, :])
         logits = self.fc(lstm_out)

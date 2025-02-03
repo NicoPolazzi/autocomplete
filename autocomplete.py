@@ -29,7 +29,7 @@ def main():
 
     logger.info("Welcome to the python autocomplete tool!")
 
-    dataset = CodeDataset(max_length=16, max_samples=500)
+    dataset = CodeDataset(max_length=8, max_samples=1000)
 
     val_size = int(len(dataset) * 0.2)
     train_size = len(dataset) - val_size
@@ -45,7 +45,9 @@ def main():
     logger.info(f"Starting {args.command} procedure...")
     if args.command == "train":
         model = CodeAutocompleteModel(
-            vocab_size=len(dataset.vocab), hidden_dim=hidden_dimension, num_layers=num_layers
+            vocab_size=dataset.tokenizer.vocab_size,
+            hidden_dim=hidden_dimension,
+            num_layers=num_layers,
         )
         logger.info("Model created successfully!")
         train_and_evaluate(model, train_loader, val_loader, epochs, lr)

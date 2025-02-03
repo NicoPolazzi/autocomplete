@@ -17,7 +17,7 @@ def train_and_evaluate(
     device="cuda" if torch.cuda.is_available() else "cpu",
 ):
     optimizer = Adam(model.parameters(), lr=lr, weight_decay=0.01)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     model.to(device)
     total_start = time.time()
 
@@ -33,8 +33,9 @@ def train_and_evaluate(
 
             optimizer.zero_grad()
             logits = model(input_ids, attention_mask)
-            loss = criterion(logits.view(-1, logits.size(-1)), target_ids.view(-1))
+            loss = criterion(logits, target_ids)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             total_loss += loss.item()
 
@@ -49,7 +50,7 @@ def train_and_evaluate(
                 target_ids = batch["target_ids"].to(device)
 
                 logits = model(input_ids, attention_mask)
-                loss = criterion(logits.view(-1, logits.size(-1)), target_ids.view(-1))
+                loss = criterion(logits, target_ids)
                 eval_loss += loss.item()
 
         logger.info(f"Epoch {epoch+1}, Eval Loss: {eval_loss:.4f}")
