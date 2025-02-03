@@ -31,7 +31,7 @@ class CodeDataset(Dataset):
         self.vocab["<PAD>"] = 0
         self.inv_vocab = {idx: token for token, idx in self.vocab.items()}
 
-        for item in self.raw_dataset:
+        for item in self.raw_dataset["output"]:
             code = self._clean(item)
             tokens = self.tokenizer.tokenize(code)
             token_ids = [self.vocab[token] for token in tokens]
