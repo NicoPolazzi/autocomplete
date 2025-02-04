@@ -4,7 +4,7 @@ import torch
 
 from src.logger import get_logger
 from src.dataset import CodeDataset
-from src.model import CodeAutocompleteModel
+from src.model import CodeAutocompleteModel, CodeAutocompleteRNN
 from src.optimization import train_and_evaluate
 
 from torch.utils.data import random_split, DataLoader
@@ -13,12 +13,14 @@ from torch.utils.data import random_split, DataLoader
 logger = get_logger(__name__)
 
 
-batch_size = 32
+batch_size = 128
 epochs = 10
-lr = 1e-5
+lr = 1e-3  # top value
+hidden_dimension = 768  # TODO: try to change this value
+embed_dimension = 256  # TODO: try to change this value
+num_layers = 3  # TODO: try to change this value
 
-hidden_dimension = 256
-num_layers = 2
+# TODO: try to stack more LSTM layers
 
 
 def main():
@@ -29,7 +31,7 @@ def main():
 
     logger.info("Welcome to the python autocomplete tool!")
 
-    dataset = CodeDataset(max_length=8, max_samples=1000)
+    dataset = CodeDataset(max_length=64, max_samples=10000)
 
     val_size = int(len(dataset) * 0.2)
     train_size = len(dataset) - val_size
@@ -44,10 +46,9 @@ def main():
 
     logger.info(f"Starting {args.command} procedure...")
     if args.command == "train":
-        model = CodeAutocompleteModel(
-            vocab_size=dataset.tokenizer.vocab_size,
-            hidden_dim=hidden_dimension,
-            num_layers=num_layers,
+        # model = CodeAutocompleteModel(vocab_size=dataset.tokenizer.vocab_size)
+        model = CodeAutocompleteRNN(
+            dataset.tokenizer.vocab_size, embed_dimension, hidden_dimension, num_layers
         )
         logger.info("Model created successfully!")
         train_and_evaluate(model, train_loader, val_loader, epochs, lr)

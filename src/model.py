@@ -3,6 +3,7 @@ import torch
 from transformers import AutoModel
 
 from src.logger import get_logger
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 logger = get_logger(__name__)
 
@@ -10,38 +11,41 @@ MODEL_NAME = "microsoft/codebert-base"
 
 
 class CodeAutocompleteModel(nn.Module):
-    def __init__(
-        self,
-        vocab_size: int,
-        hidden_dim: int = 256,
-        num_layers: int = 2,
-        dropout_rate: float = 0.3,
-    ):
+    def __init__(self, vocab_size: int):
         super(CodeAutocompleteModel, self).__init__()
         self.embedding = AutoModel.from_pretrained(MODEL_NAME)
-        # This step is used to reduce the model size
-        self.projection = nn.Linear(self.embedding.config.hidden_size, hidden_dim)
-        self.layer_norm = nn.LayerNorm(hidden_dim)
-        self.dropout = nn.Dropout(dropout_rate)
-        self.lstm = nn.LSTM(
-            input_size=hidden_dim,
-            hidden_size=hidden_dim,
-            num_layers=num_layers,
-            batch_first=True,
-            dropout=dropout_rate if num_layers > 1 else 0,
-            bidirectional=True,
-        )
-        self.fc = nn.Linear(hidden_dim * 2, vocab_size)
+        for param in self.embedding.parameters():
+            param.requires_grad = False
+
+        hidden_size = self.embedding.config.hidden_size
+        self.classifier = nn.Linear(hidden_size, vocab_size)
+        nn.init.normal_(self.classifier.weight, std=0.02)
+        nn.init.zeros_(self.classifier.bias)
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
-        with torch.no_grad():
-            embeddings = self.embedding(input_ids, attention_mask).last_hidden_state
+        outputs = self.embedding(input_ids, attention_mask)
+        hidden_states = outputs.last_hidden_state
+        logits = self.classifier(hidden_states)
+        return logits
 
-        embeddings = self.projection(embeddings)
-        embeddings = self.layer_norm(embeddings)
-        embeddings = self.dropout(embeddings)
 
-        lstm_out, _ = self.lstm(embeddings)
-        lstm_out = self.dropout(lstm_out[:, -1, :])
-        logits = self.fc(lstm_out)
+class CodeAutocompleteRNN(nn.Module):
+    def __init__(self, vocab_size, embed_dim=128, hidden_dim=256, num_layers=2, dropout=0.1):
+        super(CodeAutocompleteRNN, self).__init__()
+        self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
+        self.lstm = nn.LSTM(
+            embed_dim, hidden_dim, num_layers=num_layers, batch_first=True, dropout=dropout
+        )
+        self.classifier = nn.Linear(hidden_dim, vocab_size)
+
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
+        x = self.embedding(input_ids)
+        lengths = attention_mask.sum(dim=1).to("cpu")
+
+        # Pack the sequences so the LSTM ignores pad tokens.
+        packed_x = pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
+        packed_output, _ = self.lstm(packed_x)
+        output, _ = pad_packed_sequence(packed_output, batch_first=True, total_length=x.size(1))
+
+        logits = self.classifier(output)
         return logits
