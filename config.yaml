@@ -1,0 +1,13 @@
+# Dataset parameters
+max_length: 128
+max_samples: 10000
+
+# Model parameters
+hidden_dimension: 256
+embed_dimension: 256
+num_layers: 2
+
+# Training parameters
+batch_size: 128
+epochs: 10
+lr: 0.001

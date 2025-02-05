@@ -1,31 +1,19 @@
-import pickle
-
 import torch
-from torch.utils.data import Dataset
-from transformers import RobertaTokenizer
+import yaml
 
 
-# Maybe not usefull
-def set_device() -> None:
+def get_device() -> torch.device:
     device = torch.device("cpu")
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
+    elif torch.xpu.is_available():
+        device = torch.device("xpu")
 
     torch.set_default_device(device)
+    return torch.get_default_device()
 
 
-def load_processed_dataset(dataset_path: str) -> Dataset:
-    with open(dataset_path, "rb") as f:
-        preprocessed_dataset = pickle.load(f)
-
-    return preprocessed_dataset
-
-
-def get_code_from_tokens(token_ids: list[int], tokenizer: RobertaTokenizer) -> str:
-    decoded_string = tokenizer.decode(token_ids)
-    special_tokens = set(tokenizer.special_tokens_map.values())
-    cleaned_string = " ".join(word for word in decoded_string.split() if word not in special_tokens)
-    cleaned_string = cleaned_string.replace("Ġ", " ")
-    cleaned_string = cleaned_string.strip()
-    return cleaned_string
+def load_config(config_path: str) -> dict:
+    with open(config_path, "r") as file:
+        return yaml.safe_load(file)

@@ -1,57 +1,52 @@
 import argparse
+import os
 
-import torch
-
-from src.logger import get_logger
-from src.dataset import CodeDataset
-from src.model import CodeAutocompleteModel, CodeAutocompleteRNN
-from src.optimization import train_and_evaluate
-
-from torch.utils.data import random_split, DataLoader
+from src.logger import new_logger
+from src.dataset import CodeDataset, load_train_and_validation
+from src.model import CodeAutocompleteRNN
+from src.train import train_and_evaluate
+import src.utils as utils
 
 
-logger = get_logger(__name__)
+os.environ["TOKENIZERS_PARALLELISM"] = (
+    "false"  # disable parallelism early, needed to prevent deadlock warning (huggingface)
+)
 
 
-batch_size = 128
-epochs = 25
-lr = 1e-3
-hidden_dimension = 512
-embed_dimension = 256
-num_layers = 2
-
-
-def main():
-    # TODO: implement all command line choices
+def main() -> None:
+    logger = new_logger(__name__)
+    logger.info("Welcome to the python autocomplete tool!")
     parser = argparse.ArgumentParser(description="Python autocompletion")
     parser.add_argument("command", choices=["train", "evaluate", "inference"])
     args = parser.parse_args()
-
-    logger.info("Welcome to the python autocomplete tool!")
-
-    dataset = CodeDataset(max_length=32, max_samples=100000)
-    logger.info(f"Dataset samples: {len(dataset)}")
-
-    val_size = int(len(dataset) * 0.2)
-    train_size = len(dataset) - val_size
-    train_dataset, val_dataset = random_split(
-        dataset, [train_size, val_size], generator=torch.Generator().manual_seed(42)
+    config = utils.load_config("config.yaml")
+    device = utils.get_device()
+    logger.info(f"Using device: {device}")
+    dataset = CodeDataset(max_length=config["max_length"], max_samples=config["max_samples"])
+    train_loader, validation_loader = load_train_and_validation(
+        dataset, config["batch_size"], device
     )
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=8)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=8)
-
-    logger.info("Data loaded successfully!")
-
     logger.info(f"Starting {args.command} procedure...")
+
     if args.command == "train":
         model = CodeAutocompleteRNN(
-            dataset.tokenizer.vocab_size, embed_dimension, hidden_dimension, num_layers
+            dataset.tokenizer.vocab_size,
+            config["embed_dimension"],
+            config["hidden_dimension"],
+            config["num_layers"],
+            pad_token_id=dataset.tokenizer.pad_token_id,
         )
-        logger.info("Model created successfully!")
-        train_and_evaluate(model, train_loader, val_loader, epochs, lr)
+        train_and_evaluate(
+            model,
+            train_loader,
+            validation_loader,
+            dataset.tokenizer,
+            config["epochs"],
+            config["lr"],
+            device,
+        )
 
-    logger.info("End of the python autocomplete tool!")
+    logger.info("Goodbye from the python autocomplete tool!")
 
 
 if __name__ == "__main__":
