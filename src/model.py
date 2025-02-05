@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-from transformers import AutoModel
+from transformers import AutoModel, AutoTokenizer
 
 from src.logger import get_logger
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -8,6 +8,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 logger = get_logger(__name__)
 
 MODEL_NAME = "microsoft/codebert-base"
+tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
 
 
 class CodeAutocompleteModel(nn.Module):
@@ -32,20 +33,20 @@ class CodeAutocompleteModel(nn.Module):
 class CodeAutocompleteRNN(nn.Module):
     def __init__(self, vocab_size, embed_dim=128, hidden_dim=256, num_layers=2, dropout=0.1):
         super(CodeAutocompleteRNN, self).__init__()
-        self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
+        self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=tokenizer.pad_token_id)
         self.lstm = nn.LSTM(
             embed_dim, hidden_dim, num_layers=num_layers, batch_first=True, dropout=dropout
         )
         self.classifier = nn.Linear(hidden_dim, vocab_size)
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor):
-        x = self.embedding(input_ids)
-        lengths = attention_mask.sum(dim=1).to("cpu")
+        lengths = attention_mask.sum(dim=1).long()
+        embedded_input = self.embedding(input_ids)
 
-        # Pack the sequences so the LSTM ignores pad tokens.
-        packed_x = pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
-        packed_output, _ = self.lstm(packed_x)
-        output, _ = pad_packed_sequence(packed_output, batch_first=True, total_length=x.size(1))
+        lstm_output, _ = self.lstm(embedded_input)
+        batch_size = lstm_output.size(0)
 
-        logits = self.classifier(output)
+        last_hidden_state = lstm_output[torch.arange(batch_size), lengths - 1, :]
+        logits = self.classifier(last_hidden_state)
+
         return logits

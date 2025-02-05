@@ -14,13 +14,11 @@ logger = get_logger(__name__)
 
 
 batch_size = 128
-epochs = 10
-lr = 1e-3  # top value
-hidden_dimension = 768  # TODO: try to change this value
-embed_dimension = 256  # TODO: try to change this value
-num_layers = 3  # TODO: try to change this value
-
-# TODO: try to stack more LSTM layers
+epochs = 25
+lr = 1e-3
+hidden_dimension = 512
+embed_dimension = 256
+num_layers = 2
 
 
 def main():
@@ -31,7 +29,8 @@ def main():
 
     logger.info("Welcome to the python autocomplete tool!")
 
-    dataset = CodeDataset(max_length=64, max_samples=10000)
+    dataset = CodeDataset(max_length=32, max_samples=100000)
+    logger.info(f"Dataset samples: {len(dataset)}")
 
     val_size = int(len(dataset) * 0.2)
     train_size = len(dataset) - val_size
@@ -39,14 +38,13 @@ def main():
         dataset, [train_size, val_size], generator=torch.Generator().manual_seed(42)
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=8)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=8)
 
     logger.info("Data loaded successfully!")
 
     logger.info(f"Starting {args.command} procedure...")
     if args.command == "train":
-        # model = CodeAutocompleteModel(vocab_size=dataset.tokenizer.vocab_size)
         model = CodeAutocompleteRNN(
             dataset.tokenizer.vocab_size, embed_dimension, hidden_dimension, num_layers
         )
