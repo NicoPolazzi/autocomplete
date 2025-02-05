@@ -1,46 +1,38 @@
 import torch.nn as nn
-import torch.nn.functional as F
-from torch import Tensor
 import torch
 
+from src.logger import new_logger
 
-class AutocompleteModel(nn.Module):
+
+class CodeAutocompleteRNN(nn.Module):
     def __init__(
-        self, input_size: int, hidden_size: int, output_size: int, num_layers: int = 2, dropout: float = 0.2
+        self,
+        vocab_size: int,
+        embed_dim: int = 128,
+        hidden_dim: int = 256,
+        num_layers: int = 2,
+        dropout: float = 0.1,
+        pad_token_id: int = 0,
     ) -> None:
-        super(AutocompleteModel, self).__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-
+        super(CodeAutocompleteRNN, self).__init__()
+        self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=pad_token_id)
         self.lstm = nn.LSTM(
-            input_size,
-            hidden_size,
-            num_layers,
-            batch_first=True,
-            dropout=dropout if num_layers > 1 else 0,
+            embed_dim, hidden_dim, num_layers=num_layers, batch_first=True, dropout=dropout
         )
-        self.layer_norm = nn.LayerNorm(hidden_size)
-        self.attention = _AttentionLayer(hidden_size)
-        self.fc = nn.Linear(hidden_size, output_size)
+        self.classifier = nn.Linear(hidden_dim, vocab_size)
 
-    def forward(self, x: Tensor) -> Tensor:
-        batch_size = x.size(0)
-        h0 = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(x.device)
-        c0 = torch.zeros(self.num_layers, batch_size, self.hidden_size).to(x.device)
+        logger = new_logger(__name__)
+        total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        logger.info(f"Model created with a total of {total_params} trainable parameters")
 
-        lstm_out, _ = self.lstm(x, (h0, c0))
-        normalized = self.layer_norm(lstm_out)
-        attended = self.attention(normalized)
-        out = self.fc(attended)
+    def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        lengths = attention_mask.sum(dim=1).long()
+        embedded_input = self.embedding(input_ids)
 
-        return out
+        lstm_output, _ = self.lstm(embedded_input)
+        batch_size = lstm_output.size(0)
 
+        last_hidden_state = lstm_output[torch.arange(batch_size), lengths - 1, :]
+        logits = self.classifier(last_hidden_state)
 
-class _AttentionLayer(nn.Module):
-    def __init__(self, hidden_size: int) -> None:
-        super().__init__()
-        self.attention = nn.Linear(hidden_size, 1)
-
-    def forward(self, x: Tensor) -> Tensor:
-        attention_weights = F.softmax(self.attention(x), dim=1)
-        return torch.sum(attention_weights * x, dim=1)
+        return logits

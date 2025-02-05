@@ -1,10 +1,15 @@
 import logging
 
 
-def get_logger(name: str) -> logging.Logger:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
-    )
+def new_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s")
 
-    return logging.getLogger(name)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    return logger

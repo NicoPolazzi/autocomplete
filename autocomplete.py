@@ -1,37 +1,52 @@
 import argparse
+import os
 
-from torch import nn
-import torch
-
-from src.logger import get_logger
-from src.dataset import CodeDataset
-from src.train import train_model
-from src.utils import load_processed_dataset
-
-logger = get_logger(__name__)
+from src.logger import new_logger
+from src.dataset import CodeDataset, load_train_and_validation
+from src.model import CodeAutocompleteRNN
+from src.train import train_and_evaluate
+import src.utils as utils
 
 
-def main():
+os.environ["TOKENIZERS_PARALLELISM"] = (
+    "false"  # disable parallelism early, needed to prevent deadlock warning (huggingface)
+)
+
+
+def main() -> None:
+    logger = new_logger(__name__)
+    logger.info("Welcome to the python autocomplete tool!")
     parser = argparse.ArgumentParser(description="Python autocompletion")
-    parser.add_argument("command", choices=["preprocess", "train"])
+    parser.add_argument("command", choices=["train", "evaluate", "inference"])
     args = parser.parse_args()
+    config = utils.load_config("config.yaml")
+    device = utils.get_device()
+    logger.info(f"Using device: {device}")
+    dataset = CodeDataset(max_length=config["max_length"], max_samples=config["max_samples"])
+    train_loader, validation_loader = load_train_and_validation(
+        dataset, config["batch_size"], device
+    )
+    logger.info(f"Starting {args.command} procedure...")
 
-    logger.info("Start of the ML pipeline")
+    if args.command == "train":
+        model = CodeAutocompleteRNN(
+            dataset.tokenizer.vocab_size,
+            config["embed_dimension"],
+            config["hidden_dimension"],
+            config["num_layers"],
+            pad_token_id=dataset.tokenizer.pad_token_id,
+        )
+        train_and_evaluate(
+            model,
+            train_loader,
+            validation_loader,
+            dataset.tokenizer,
+            config["epochs"],
+            config["lr"],
+            device,
+        )
 
-    if args.command == "preprocess":
-        alldata = CodeDataset()
-        alldata.write_to_file("data/dataset.pkl")
-
-    elif args.command == "train":
-        dataset = load_processed_dataset("data/dataset.pkl")
-        train_dataset, test_dataset = dataset.create_train_evaluation_split()
-
-        input_size = 768
-        hidden_size = 256
-        output_size = len(set(dataset.next_tokens_ids))
-        num_layer = 2
-
-    logger.info("End of the ML pipeline")
+    logger.info("Goodbye from the python autocomplete tool!")
 
 
 if __name__ == "__main__":
