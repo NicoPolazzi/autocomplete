@@ -2,93 +2,94 @@ import re
 
 import torch
 from torch.utils.data import Dataset
-from transformers import AutoTokenizer
 from datasets import load_dataset
-from torch.utils.data import random_split, DataLoader
+from torch.utils.data import DataLoader
+from transformers import PreTrainedTokenizer
 
-from src.logger import new_logger
+from src.utils import new_logger
 
 logger = new_logger(__name__)
 
-MIN_SEQUENCE_LENGTH = 50
-CODEBERT_MODEL = "microsoft/codebert-base"
-
-Sequence = list[int]
-AttentionMask = list[int]
-
 
 class CodeDataset(Dataset):
-    def __init__(self, max_length: int, max_samples: int) -> None:
-        self.input_sequences: list[Sequence] = []
-        self.target_sequences: list[int] = []
-        self.attention_masks: list[AttentionMask] = []
-        self.tokenizer = AutoTokenizer.from_pretrained(CODEBERT_MODEL)
-        self.max_length = min(max_length, self.tokenizer.model_max_length - 1)
-        self.raw_dataset = load_dataset(
-            "code_search_net", "python", split=f"train[:{max_samples}]", trust_remote_code=True
-        )["func_code_string"]
+    def __init__(
+        self, tokenizer: PreTrainedTokenizer, context_length: int, max_snippets: int, train: bool
+    ) -> None:
+        super().__init__()
+        self.tokenizer = tokenizer
+        self.context_length = context_length
+        self.train = train
+        dataset = load_dataset("code_search_net", "python")
 
-        self._build_sequences()
+        # I assume always using the first 80% of the dataset for training and the last 20% for validation
+        # I know that it could be better using a more sophisticated split for different dataset sizes
+        if self.train:
+            data = (
+                dataset["train"]
+                .select(range(int(max_snippets * 0.8)))
+                .map(self._tokenize_function, batched=True)
+            )
+        else:
+            data = (
+                dataset["validation"]
+                .select(range(int(max_snippets * 0.2)))
+                .map(self._tokenize_function, batched=True)
+            )
+
+        self.input_ids = data["input_ids"]
         logger.info(f"Dataset created with {len(self)} samples")
 
     def __len__(self) -> int:
-        return len(self.input_sequences)
+        return len(self.input_ids)
 
-    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
-        return {
-            "input_ids": torch.tensor(self.input_sequences[idx], dtype=torch.long),
-            "attention_mask": torch.tensor(self.attention_masks[idx], dtype=torch.long),
-            "target_ids": torch.tensor(self.target_sequences[idx], dtype=torch.long),
-        }
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        sequence = self.input_ids[idx]
 
-    def _build_sequences(self) -> None:
-        for func_code in self.raw_dataset:
-            func_code = self._remove_comments(func_code)
+        return (
+            torch.tensor(sequence[:-1]),
+            torch.tensor(sequence[1:]),
+        )
 
-            if self._short_sequence(func_code):
-                continue
+    def get_loader(self, batch_size: int) -> DataLoader:
+        generator = torch.Generator(device=torch.get_default_device()).manual_seed(42)
 
-            input_ids = self.tokenizer.encode(
-                func_code,
-                max_length=self.max_length + 1,
-                truncation=True,
-                padding="max_length",
-                add_special_tokens=True,
+        if self.train:
+            loader = DataLoader(
+                self, batch_size=batch_size, shuffle=True, num_workers=8, generator=generator
             )
-            target_ids = input_ids[-1]
-            input_ids = input_ids[:-1]
-            attention_mask = [
-                1 if token_id != self.tokenizer.pad_token_id else 0 for token_id in input_ids
-            ]
+        else:
+            loader = DataLoader(self, batch_size=batch_size, num_workers=8, generator=generator)
 
-            self.input_sequences.append(input_ids)
-            self.target_sequences.append(target_ids)
-            self.attention_masks.append(attention_mask)
+        logger.info(f"Loader created with {len(loader)} batches")
+        return loader
 
-    def _remove_comments(self, code: str) -> str:
-        code = re.sub(r"'''[\s\S]*?'''", "", code)
-        code = re.sub(r'"""[\s\S]*?"""', "", code)
-        return re.sub(r"#.*", "", code)
+    def _tokenize_function(self, examples: dict[str, list[str]]) -> dict[str, list[int]]:
+        cleaned_code = [
+            _clean_code(code)
+            for code in examples["func_code_string"]
+            if not self._short_sequence(code)
+        ]
+
+        return self.tokenizer(
+            cleaned_code,
+            max_length=self.context_length,
+            padding="max_length",
+            truncation=True,
+            add_special_tokens=False,
+        )
 
     def _short_sequence(self, code: str) -> bool:
-        return len(code.strip()) < MIN_SEQUENCE_LENGTH
+        return len(code.strip()) < self.context_length
 
 
-def load_train_and_validation(
-    dataset: CodeDataset, batch_size: int, device: torch.device
-) -> tuple[DataLoader, DataLoader]:
-    generator = torch.Generator(device).manual_seed(42)
-    val_size = int(len(dataset) * 0.2)
-    train_size = len(dataset) - val_size
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size], generator=generator)
-    logger.info(
-        f"Created train and validation datasets with sizes: {len(train_dataset)} and {len(val_dataset)}"
-    )
-    train_loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, num_workers=8, generator=generator
-    )
-    val_loader = DataLoader(
-        val_dataset, batch_size=batch_size, shuffle=False, num_workers=8, generator=generator
-    )
-
-    return train_loader, val_loader
+def _clean_code(code: str) -> str:
+    import_from_pattern = re.compile(r"^\s*(import|from)\s+.*$", re.MULTILINE)
+    single_quote_doc = re.compile(r"'''[\s\S]*?'''")
+    double_quote_doc = re.compile(r'"""[\s\S]*?"""')
+    inline_comment = re.compile(r"#.*")
+    code = import_from_pattern.sub("", code)
+    code = single_quote_doc.sub("", code)
+    code = double_quote_doc.sub("", code)
+    code = inline_comment.sub("", code)
+    code = "\n".join(line for line in code.splitlines() if not line.strip().startswith("#"))
+    return code
