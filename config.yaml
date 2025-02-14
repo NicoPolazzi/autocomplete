@@ -1,14 +1,14 @@
 # Dataset parameters
-context_length: 16 # Due because the program run on a CPU
-max_snippets: 1000
+context_length: 32
+max_snippets: 10000
 
 # Model parameters
-embed_dimension: 128
-hidden_dimension: 128
-num_layers: 2
-dropout: 0.1
+embed_dimension: 256
+hidden_dimension: 256
+num_layers: 3
+dropout: 0.2
 
 # Training parameters
 batch_size: 32 
 epochs: 10
-lr: 0.00005 
+lr: 0.0001

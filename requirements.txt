@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-PyGithub==2.5.0
-python-dotenv==1.0.1
-=======
 torch==2.5.1
 datasets==3.2.0
 tokenizers==0.21.0
 transformers==4.48.0
 matplotlib==3.10.0
->>>>>>> e88cfc8 (cherry pick for main)

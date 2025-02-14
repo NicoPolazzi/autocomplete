@@ -12,6 +12,18 @@ logger = new_logger(__name__)
 
 
 class CodeDataset(Dataset):
+    """
+    A PyTorch Dataset for code autocompletion using the CodeSearchNet dataset.
+
+    Parameters:
+        tokenizer (PreTrainedTokenizer): The tokenizer used to encode code snippets.
+        context_length (int): The fixed length of context to use for each sample.
+        max_snippets (int): The maximum number of snippets to load.
+        train (bool): Flag indicating whether to load training data (True) or validation data (False).
+
+    The training set uses the first 80% of the dataset, while the validation set uses the remaining 20%.
+    """
+
     def __init__(
         self, tokenizer: PreTrainedTokenizer, context_length: int, max_snippets: int, train: bool
     ) -> None:
@@ -21,8 +33,6 @@ class CodeDataset(Dataset):
         self.train = train
         dataset = load_dataset("code_search_net", "python")
 
-        # I assume always using the first 80% of the dataset for training and the last 20% for validation
-        # I know that it could be better using a more sophisticated split for different dataset sizes
         if self.train:
             data = (
                 dataset["train"]
@@ -51,6 +61,20 @@ class CodeDataset(Dataset):
         )
 
     def get_loader(self, batch_size: int) -> DataLoader:
+        """
+        Create and return a DataLoader for iterating over the dataset.
+
+        This method sets up a DataLoader to load data in batches with reproducibility ensured by
+        a fixed random seed. If the dataset is in training mode, the data will be shuffled for better
+        training. In evaluation mode, data is not shuffled.
+
+        Parameters:
+            batch_size (int): The number of samples per batch.
+
+        Returns:
+            DataLoader: A DataLoader instance configured for this dataset.
+        """
+
         generator = torch.Generator(device=torch.get_default_device()).manual_seed(42)
 
         if self.train:
@@ -83,13 +107,10 @@ class CodeDataset(Dataset):
 
 
 def _clean_code(code: str) -> str:
-    import_from_pattern = re.compile(r"^\s*(import|from)\s+.*$", re.MULTILINE)
     single_quote_doc = re.compile(r"'''[\s\S]*?'''")
     double_quote_doc = re.compile(r'"""[\s\S]*?"""')
     inline_comment = re.compile(r"#.*")
-    code = import_from_pattern.sub("", code)
     code = single_quote_doc.sub("", code)
     code = double_quote_doc.sub("", code)
     code = inline_comment.sub("", code)
-    code = "\n".join(line for line in code.splitlines() if not line.strip().startswith("#"))
     return code

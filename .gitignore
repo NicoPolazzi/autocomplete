@@ -6,7 +6,6 @@ __pycache__
 
 # Excluding plots
 plots
-models
 
 # Excluding config files
 mypy.ini

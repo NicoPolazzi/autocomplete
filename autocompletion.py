@@ -12,15 +12,16 @@ os.environ["TOKENIZERS_PARALLELISM"] = (
     "false"  # disable parallelism early, needed to prevent deadlock warning (Huggingface)
 )
 
-MODEL_DIRECTORY = Path("models")
-MODEL_PATH = MODEL_DIRECTORY / "RNN_autocompletion.pt"
+MODEL_PATH = Path("models/RNN_autocompletion.pt")
+TRAIN = "train"
+INFERENCE = "inference"
 
 
 def main() -> None:
     logger = utils.new_logger(__name__)
     logger.info("Welcome to the python autocomplete tool!")
     parser = argparse.ArgumentParser(description="Python autocompletion")
-    parser.add_argument("command", choices=["train", "inference"])
+    parser.add_argument("command", choices=[TRAIN, INFERENCE])
     parser.add_argument("--snippet", type=str, required=False)
     args = parser.parse_args()
 
@@ -39,7 +40,7 @@ def main() -> None:
     )
     logger.info(f"Starting {args.command} procedure...")
 
-    if args.command == "train":
+    if args.command == TRAIN:
         train_dataset = CodeDataset(
             tokenizer, config["context_length"], config["max_snippets"], train=True
         )
@@ -59,7 +60,7 @@ def main() -> None:
         )
         model.save_to(MODEL_PATH)
 
-    elif args.command == "inference":
+    elif args.command == INFERENCE:
         if not args.snippet:
             raise ValueError("The '--snippet' argument is required for inference.")
 

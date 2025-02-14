@@ -21,6 +21,24 @@ def train_and_validate(
     epochs: int,
     lr: float,
 ) -> None:
+    """Train and validate a neural network model for code autocompletion.
+
+    Executes the training loop with validation after each epoch. Tracks metrics including
+    training loss, validation loss, accuracy, and perplexity. Implements learning rate
+    scheduling and generates example completions during training.
+
+    Args:
+        model (nn.Module): The neural network model to train
+        train_loader (DataLoader): DataLoader containing training batches
+        validation_loader (DataLoader): DataLoader containing validation batches
+        tokenizer (PreTrainedTokenizer): Tokenizer used for text processing
+        epochs (int): Number of training epochs
+        lr (float): Initial learning rate for Adam optimizer
+
+    Returns:
+        None: Results are logged and plots are generated as side effects
+    """
+
     device = torch.get_default_device()
     model.to(device)
     optimizer = Adam(model.parameters(), lr=lr, weight_decay=0.01)
@@ -112,7 +130,7 @@ def _compute_validation_loss_and_accuracy(
             input_ids = inputs.to(device)
             target_ids = targets.to(device)
 
-            outputs = model(input_ids)  # [batch_size, vocab_size]
+            outputs = model(input_ids)
             batch_loss = criterion(outputs.view(-1, outputs.size(-1)), target_ids.view(-1))
             eval_loss += batch_loss.item()
 
