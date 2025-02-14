@@ -27,6 +27,15 @@ Install the requirements
 pip install -r requirements.txt
 ```
 
+### Git LFS
+
+This repository uses Git LFS to handle the model file. It should be automatically downloaded when you clone the repository. If the model file is missing, try to run:
+
+```bash
+git lfs pull
+```
+
+
 ## Usage
 
 ### Configuration
